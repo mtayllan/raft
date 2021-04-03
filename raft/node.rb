@@ -22,7 +22,7 @@ module Raft
 
       @updating = true
       indent = "\t" * (@id.to_i % 3)
-      # print("\n\n#{indent}update #{@id}, role #{@role}, log length #{@persistent_state.log.count}\n\n")
+      print("\n\n#{indent}update #{@id}, role #{@role}, log length #{@persistent_state.log.count}\n\n")
       case @role
       when FOLLOWER_ROLE
         follower_update
@@ -36,7 +36,7 @@ module Raft
 
     def follower_update
       if @election_timer.timed_out?
-        # print("follower node #{@id} election timed out at #{Time.now.strftime('%H:%M:%S:%L')}\n")
+        print("follower node #{@id} election timed out at #{Time.now.strftime('%H:%M:%S:%L')}\n")
         @role = CANDIDATE_ROLE
         candidate_update
       end
@@ -46,7 +46,7 @@ module Raft
 
     def candidate_update
       if @election_timer.timed_out?
-        # print("candidate node #{@id} election timed out at #{Time.now.strftime('%H:%M:%S:%L')}\n")
+        print("candidate node #{@id} election timed out at #{Time.now.strftime('%H:%M:%S:%L')}\n")
         @persistent_state.current_term += 1
         @persistent_state.voted_for = @id
         reset_election_timeout
@@ -57,9 +57,9 @@ module Raft
         votes_for = 1 # candidate always votes for self
         votes_against = 0
         quorum = @cluster.quorum
-        # print("\n\t\t#{@id} requests votes for term #{@persistent_state.current_term}\n\n")
+        print("\n\t\t#{@id} requests votes for term #{@persistent_state.current_term}\n\n")
         @config.rpc_provider.request_votes(request, @cluster) do |voter_id, request, response|
-          # print("\n\t\t#{@id} receives vote #{response.vote_granted} from #{voter_id}\n\n")
+          print("\n\t\t#{@id} receives vote #{response.vote_granted} from #{voter_id}\n\n")
           elected = nil # no majority result yet
           if request.term != @persistent_state.current_term
             # this is a response to an out-of-date request, just ignore it
@@ -73,15 +73,15 @@ module Raft
             votes_against += 1
             elected = false if votes_against >= quorum
           end
-          # print("\n\t\t#{@id} receives vote #{response.vote_granted}, elected is #{elected.inspect}\n\n")
+          print("\n\t\t#{@id} receives vote #{response.vote_granted}, elected is #{elected.inspect}\n\n")
           elected
         end
         if votes_for >= quorum
-          # print("\n#{@id} becomes leader for term #{@persistent_state.current_term}\n\n")
+          print("\n#{@id} becomes leader for term #{@persistent_state.current_term}\n\n")
           @role = LEADER_ROLE
           establish_leadership
         else
-          # print("\n\t\t#{@id} not elected leader (for #{votes_for}, against #{votes_against})\n\n")
+          print("\n\t\t#{@id} not elected leader (for #{votes_for}, against #{votes_against})\n\n")
         end
       end
     end
@@ -89,7 +89,7 @@ module Raft
     protected :candidate_update
 
     def leader_update
-      # print("\nLEADER UPDATE BEGINS\n")
+      print("\nLEADER UPDATE BEGINS\n")
       if @leadership_state.update_timer.timed_out?
         @leadership_state.update_timer.reset!
         send_heartbeats
@@ -103,13 +103,13 @@ module Raft
                            @persistent_state.log.size - 1
                          end
       handle_commits(new_commit_index)
-      # print("\nLEADER UPDATE ENDS\n")
+      print("\nLEADER UPDATE ENDS\n")
     end
 
     protected :leader_update
 
     def handle_commits(new_commit_index)
-      # print("\nnode #{@id} handle_commits(new_commit_index = #{new_commit_index}) (@temporary_state.commit_index = #{@temporary_state.commit_index}\n")
+      print("\nnode #{@id} handle_commits(new_commit_index = #{new_commit_index}) (@temporary_state.commit_index = #{@temporary_state.commit_index}\n")
       return if new_commit_index == @temporary_state.commit_index
 
       next_commit = @temporary_state.commit_index.nil? ? 0 : @temporary_state.commit_index + 1
@@ -117,7 +117,7 @@ module Raft
         @commit_handler.call(@persistent_state.log[next_commit].command) if @commit_handler
         @temporary_state.commit_index = next_commit
         next_commit += 1
-        # print("\n\tnode #{@id} handle_commits(new_commit_index = #{new_commit_index}) (new @temporary_state.commit_index = #{@temporary_state.commit_index}\n")
+        print("\n\tnode #{@id} handle_commits(new_commit_index = #{new_commit_index}) (new @temporary_state.commit_index = #{@temporary_state.commit_index}\n")
       end
     end
 
@@ -139,7 +139,7 @@ module Raft
     protected :establish_leadership
 
     def send_heartbeats
-      # print("\nnode #{@id} sending heartbeats at #{Time.now.strftime('%H:%M:%S:%L')}\n")
+      print("\nnode #{@id} sending heartbeats at #{Time.now.strftime('%H:%M:%S:%L')}\n")
       last_log_entry = @persistent_state.log.last
       log_index = last_log_entry ? last_log_entry.index : nil
       log_term = last_log_entry ? last_log_entry.term : nil
@@ -163,14 +163,14 @@ module Raft
       if @role != LEADER_ROLE
         # we lost the leadership
       elsif response.success
-        # print("\nappend_entries_to_follower #{node_id} request #{request.pretty_inspect} succeeded\n")
+        print("\nappend_entries_to_follower #{node_id} request #{request.pretty_inspect} succeeded\n")
         @leadership_state.followers[node_id].next_index = (request.prev_log_index || -1) + request.entries.count + 1
         @leadership_state.followers[node_id].succeeded = true
       elsif response.term <= @persistent_state.current_term
-        # print("\nappend_entries_to_follower #{node_id} request failed (#{request.pretty_inspect}) and responded with #{response.pretty_inspect}\n")
+        print("\nappend_entries_to_follower #{node_id} request failed (#{request.pretty_inspect}) and responded with #{response.pretty_inspect}\n")
         @config.rpc_provider.append_entries_to_follower(request, node_id) do |node_id, _response|
           if @role == LEADER_ROLE # make sure leadership wasn't lost since the request
-            # print("\nappend_entries_to_follower #{node_id} callback...\n")
+            print("\nappend_entries_to_follower #{node_id} callback...\n")
             prev_log_index = request.prev_log_index.nil? || request.prev_log_index <= 0 ? nil : request.prev_log_index - 1
             prev_log_term = nil
             entries = @persistent_state.log
@@ -186,8 +186,8 @@ module Raft
               entries,
               @temporary_state.commit_index
             )
-            # print("\nappend_entries_to_follower #{node_id} request #{request.pretty_inspect} failed...\n")
-            # print("sending updated request #{next_request.pretty_inspect}\n")
+            print("\nappend_entries_to_follower #{node_id} request #{request.pretty_inspect} failed...\n")
+            print("sending updated request #{next_request.pretty_inspect}\n")
             @config.rpc_provider.append_entries_to_follower(next_request, node_id) do |node_id, response|
               append_entries_to_follower(node_id, next_request, response)
             end
@@ -199,7 +199,7 @@ module Raft
     protected :append_entries_to_follower
 
     def handle_request_vote(request)
-      # print("\nnode #{@id} handling vote request from #{request.candidate_id} (request.last_log_index: #{request.last_log_index}, vs #{@persistent_state.log.last.index}\n")
+      print("\nnode #{@id} handling vote request from #{request.candidate_id} (request.last_log_index: #{request.last_log_index}, vs #{@persistent_state.log.last.index}\n")
       response = RequestVoteResponse.new
       response.term = @persistent_state.current_term
       response.vote_granted = false
@@ -235,15 +235,15 @@ module Raft
     end
 
     def handle_append_entries(request)
-      # print("\n\nnode #{@id} handle_append_entries: #{request.entries.pretty_inspect}\n\n") #if request.prev_log_index.nil?
+      print("\n\nnode #{@id} handle_append_entries: #{request.entries.pretty_inspect}\n\n") #if request.prev_log_index.nil?
       response = AppendEntriesResponse.new
       response.term = @persistent_state.current_term
       response.success = false
 
-      # print("\n\nnode #{@id} handle_append_entries for term #{request.term} (current is #{@persistent_state.current_term})\n")# if request.prev_log_index.nil?
+      print("\n\nnode #{@id} handle_append_entries for term #{request.term} (current is #{@persistent_state.current_term})\n")# if request.prev_log_index.nil?
       return response if request.term < @persistent_state.current_term
 
-      # print("\n\nnode #{@id} handle_append_entries stage 2\n") if request.prev_log_index.nil?
+      print("\n\nnode #{@id} handle_append_entries stage 2\n") if request.prev_log_index.nil?
 
       step_down_if_new_term(request.term)
 
@@ -253,7 +253,7 @@ module Raft
 
       abs_log_index = abs_log_index_for(request.prev_log_index, request.prev_log_term)
       return response if abs_log_index.nil? && !request.prev_log_index.nil? && !request.prev_log_term.nil?
-      # print("\n\nnode #{@id} handle_append_entries stage 3\n") if request.prev_log_index.nil?
+      print("\n\nnode #{@id} handle_append_entries stage 3\n") if request.prev_log_index.nil?
       if @temporary_state.commit_index &&
          abs_log_index &&
          abs_log_index < @temporary_state.commit_index
@@ -264,7 +264,7 @@ module Raft
 
       return response unless update_commit_index(request.commit_index)
 
-      # print("\n\nnode #{@id} handle_append_entries stage 4\n") if request.prev_log_index.nil?
+      print("\n\nnode #{@id} handle_append_entries stage 4\n") if request.prev_log_index.nil?
 
       response.success = true
       response
@@ -346,7 +346,7 @@ module Raft
       else
         log = log.slice(0..abs_log_index)
       end
-      # print("\n\nentries is: #{entries.pretty_inspect}\n\n")
+      print("\n\nentries is: #{entries.pretty_inspect}\n\n")
       log = log.concat(entries) unless entries.empty?
       @persistent_state.log = log
     end
@@ -354,7 +354,7 @@ module Raft
     protected :truncate_and_update_log
 
     def update_commit_index(new_commit_index)
-      # print("\n\n%%%%%%%%%%%%%%%%%%%%% node #{@id} update_commit_index(new_commit_index = #{new_commit_index})\n")
+      print("\n\n%%%%%%%%%%%%%%%%%%%%% node #{@id} update_commit_index(new_commit_index = #{new_commit_index})\n")
       return false if @temporary_state.commit_index && @temporary_state.commit_index > new_commit_index
 
       handle_commits(new_commit_index)

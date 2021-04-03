@@ -7,12 +7,12 @@ module Raft
     end
 
     def splayed_interval
-      (@interval + (rand * @splay)) # .tap {|t|# print("\nsplayed interval is #{t}\n")}
+      (@interval + (rand * @splay)) # .tap {|t|print("\nsplayed interval is #{t}\n")}
     end
 
     def reset!
       @start = Time.now + splayed_interval
-      # print("\ntimer will elapse at #{timeout.strftime('%H:%M:%S:%L')} (timeout is #{timeout.class})\n")
+      print("\ntimer will elapse at #{timeout.strftime('%H:%M:%S:%L')} (timeout is #{timeout.class})\n")
     end
 
     def timeout
@@ -20,7 +20,7 @@ module Raft
     end
 
     def timed_out?
-      # print("\ntime is #{Time.now.strftime('%M:%S:%L')}\n")
+      print("\ntime is #{Time.now.strftime('%M:%S:%L')}\n")
       Time.now > timeout
     end
   end
